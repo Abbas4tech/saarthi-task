@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Appointment, Customer, RecordingArtifact } from "@/lib/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ interface Props {
   appointment?: Appointment;
   customers: Customer[];
   onRecordingReady?: (artifact: RecordingArtifact) => void;
+  onRecordingSynced?: (recording: RecordingArtifact) => void;
 }
 
 const stateLabel = {
@@ -24,6 +25,7 @@ export function RecordingCenter({
   appointment,
   customers,
   onRecordingReady,
+  onRecordingSynced,
 }: Props) {
   const [recipientOverrides, setRecipientOverrides] = useState<
     Record<string, string>
@@ -41,6 +43,19 @@ export function RecordingCenter({
     updateRecipient,
     deliverRecording,
   } = useRecordingManager();
+  const syncedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    recordings.forEach((recording) => {
+      if (
+        recording.state === "SYNCED" &&
+        !syncedRef.current.has(recording.id)
+      ) {
+        syncedRef.current.add(recording.id);
+        onRecordingSynced?.(recording);
+      }
+    });
+  }, [recordings, onRecordingSynced]);
 
   const selectedCustomer = appointment
     ? recipientOverrides[appointment.id] ??
@@ -298,9 +313,15 @@ function RecordingRow({
             </p>
           )}
         </div>
-        <audio controls className="mt-2 w-full">
-          <source src={recording.dataUrl} type="audio/wav" />
-        </audio>
+        {recording.dataUrl ? (
+          <audio controls className="mt-2 w-full">
+            <source src={recording.dataUrl} type="audio/wav" />
+          </audio>
+        ) : (
+          <p className="mt-2 text-xs text-zinc-500">
+            Recording stored remotely. Use the timeline to review.
+          </p>
+        )}
       </div>
     </div>
   );

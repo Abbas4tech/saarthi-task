@@ -4,6 +4,8 @@ import { formatDate } from "@/lib/utils";
 interface Props {
   open: boolean;
   onClose: () => void;
+  loading?: boolean;
+  error?: string | null;
   metadata?: {
     title: string;
     customer: string;
@@ -12,10 +14,16 @@ interface Props {
   };
 }
 
-export function PlaybackPanel({ open, onClose, metadata }: Props) {
-  if (!open || !metadata) return null;
+export function PlaybackPanel({
+  open,
+  onClose,
+  metadata,
+  loading,
+  error,
+}: Props) {
+  if (!open) return null;
 
-  const mimeType = metadata.url.startsWith("data:audio/wav")
+  const mimeType = metadata?.url.startsWith("data:audio/wav")
     ? "audio/wav"
     : "audio/mpeg";
 
@@ -28,21 +36,29 @@ export function PlaybackPanel({ open, onClose, metadata }: Props) {
               Playback
             </p>
             <h3 className="text-xl font-semibold text-zinc-950 dark:text-zinc-100">
-              {metadata.title}
+              {metadata?.title ?? "Loading recording"}
             </h3>
-            <p className="text-sm text-zinc-500">
-              {metadata.customer} • {formatDate(metadata.recordedAt)}
-            </p>
+            {metadata ? (
+              <p className="text-sm text-zinc-500">
+                {metadata.customer} • {formatDate(metadata.recordedAt)}
+              </p>
+            ) : null}
           </div>
           <Button variant="ghost" onClick={onClose}>
             Close
           </Button>
         </header>
         <div className="mt-6 rounded-2xl border border-zinc-200 bg-zinc-50 p-6 dark:border-zinc-800 dark:bg-zinc-900/40">
-          <audio controls className="w-full">
-            <source src={metadata.url} type={mimeType} />
-            Your browser does not support the audio element.
-          </audio>
+          {error ? (
+            <p className="text-sm text-rose-500">{error}</p>
+          ) : loading || !metadata ? (
+            <p className="text-sm text-zinc-500">Fetching recording…</p>
+          ) : (
+            <audio controls autoPlay className="w-full">
+              <source src={metadata.url} type={mimeType} />
+              Your browser does not support the audio element.
+            </audio>
+          )}
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   customers as initialCustomers,
   appointments as initialAppointments,
@@ -11,13 +11,19 @@ import { AppointmentBoard } from "@/components/crm/appointment-board";
 import { RecordingCenter } from "@/components/crm/recording-center";
 import { PlaybackPanel } from "@/components/crm/playback-panel";
 
-const demoRecordingLibrary: Record<
-  string,
-  { url: string; recordedAt: string }
-> = {
+type LibraryEntry = {
+  url?: string;
+  recordedAt: string;
+  customerId?: string;
+  fileId?: string;
+  source: "local" | "remote";
+};
+
+const demoRecordingLibrary: Record<string, LibraryEntry> = {
   "demo-recording": {
     url: "https://interactive-examples.mdn.mozilla.net/media/examples/t-rex-roar.mp3",
     recordedAt: new Date(Date.now() - 3600 * 1000).toISOString(),
+    source: "local",
   },
 };
 
@@ -33,10 +39,14 @@ export default function Home() {
     string | null
   >(null);
   const [library, setLibrary] =
-    useState<
-      Record<string, { url: string; recordedAt: string; customerId?: string }>
-    >(demoRecordingLibrary);
+    useState<Record<string, LibraryEntry>>(demoRecordingLibrary);
   const [playbackId, setPlaybackId] = useState<string | null>(null);
+  const [playbackMedia, setPlaybackMedia] = useState<{
+    url: string;
+    recordedAt: string;
+  } | null>(null);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [isFetchingPlayback, setIsFetchingPlayback] = useState(false);
 
   const selectedAppointment = useMemo(
     () =>
@@ -51,21 +61,18 @@ export default function Home() {
     [appointments, playbackId]
   );
 
-  const playbackMetadata = playbackAppointment
-    ? {
-        title: playbackAppointment.title,
-        customer:
-          customers.find(
-            (customer) => customer.id === playbackAppointment.customerId
-          )?.name ?? "Unknown customer",
-        recordedAt:
-          library[playbackAppointment.recordingId ?? ""]?.recordedAt ??
-          playbackAppointment.scheduledFor,
-        url:
-          library[playbackAppointment.recordingId ?? ""]?.url ??
-          "https://interactive-examples.mdn.mozilla.net/media/examples/t-rex-roar.mp3",
-      }
-    : undefined;
+  const playbackMetadata =
+    playbackAppointment && playbackMedia
+      ? {
+          title: playbackAppointment.title,
+          customer:
+            customers.find(
+              (customer) => customer.id === playbackAppointment.customerId
+            )?.name ?? "Unknown customer",
+          recordedAt: playbackMedia.recordedAt,
+          url: playbackMedia.url,
+        }
+      : undefined;
 
   const handleRecordingReady = (artifact: RecordingArtifact) => {
     setLibrary((prev) => ({
@@ -74,6 +81,7 @@ export default function Home() {
         url: artifact.dataUrl,
         recordedAt: artifact.createdAt,
         customerId: artifact.customerId,
+        source: "local",
       },
     }));
     setAppointments((prev) =>
@@ -85,6 +93,80 @@ export default function Home() {
     );
     setRecorderAppointmentId(null);
   };
+
+  const handleRecordingSynced = (recording: RecordingArtifact) => {
+    setLibrary((prev) => {
+      const current = prev[recording.id] ?? {
+        recordedAt: recording.createdAt,
+        source: "remote" as const,
+      };
+      return {
+        ...prev,
+        [recording.id]: {
+          ...current,
+          url: undefined,
+          fileId: recording.fileId,
+          source: "remote",
+        },
+      };
+    });
+  };
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    const appointment = playbackAppointment;
+    if (!appointment || !appointment.recordingId) {
+      setPlaybackMedia(null);
+      setPlaybackError(null);
+      setIsFetchingPlayback(false);
+      return;
+    }
+    const entry = library[appointment.recordingId];
+    if (entry?.source === "local" && entry.url) {
+      setPlaybackMedia({ url: entry.url, recordedAt: entry.recordedAt });
+      setPlaybackError(null);
+      setIsFetchingPlayback(false);
+      return;
+    }
+    const fetchRecording = async () => {
+      setIsFetchingPlayback(true);
+      setPlaybackError(null);
+      try {
+        const response = await fetch(
+          `/api/recordings/${appointment.recordingId}`
+        );
+        if (!response.ok) {
+          throw new Error("Recording is not available yet.");
+        }
+        const recordedAt =
+          response.headers.get("x-recorded-at") ??
+          entry?.recordedAt ??
+          appointment.scheduledFor;
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (!cancelled) {
+          setPlaybackMedia({ url: objectUrl, recordedAt });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setPlaybackError((err as Error).message);
+          setPlaybackMedia(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsFetchingPlayback(false);
+        }
+      }
+    };
+    fetchRecording();
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [playbackAppointment, library]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white px-6 py-10 font-sans">
@@ -129,14 +211,17 @@ export default function Home() {
               appointment={selectedAppointment}
               customers={customers}
               onRecordingReady={handleRecordingReady}
+              onRecordingSynced={handleRecordingSynced}
             />
           </div>
         </main>
       </div>
 
       <PlaybackPanel
-        open={Boolean(playbackMetadata)}
+        open={Boolean(playbackAppointment)}
         metadata={playbackMetadata}
+        loading={isFetchingPlayback}
+        error={playbackError}
         onClose={() => setPlaybackId(null)}
       />
     </div>

@@ -3,9 +3,8 @@ import { RecordingArtifact, RecordingDocument } from "@/lib/types";
 import { getRecordingsBucket, getRecordingsCollection } from "@/lib/mongo";
 import { pipeline } from "stream/promises";
 import { Readable } from "stream";
-
-const mongoEnabled = Boolean(process.env.MONGODB_URI);
-const inMemoryLedger: RecordingDocument[] = [];
+import { inMemoryLedger, mongoEnabled } from "./context";
+import { dataUrlToBuffer } from "./helpers";
 
 export async function POST(request: Request) {
   try {
@@ -146,8 +145,3 @@ export async function GET() {
     );
   }
 }
-
-const dataUrlToBuffer = (dataUrl: string) => {
-  const [, base64Payload] = dataUrl.split(",");
-  return Buffer.from(base64Payload ?? "", "base64");
-};

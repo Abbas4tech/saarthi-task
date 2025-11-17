@@ -24,7 +24,8 @@ const readRecordings = (): RecordingArtifact[] => {
 
 const persistRecordings = (value: RecordingArtifact[]) => {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+  const localOnly = value.filter((recording) => recording.state !== "SYNCED");
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(localOnly));
 };
 
 export const useRecordingManager = () => {
@@ -207,10 +208,20 @@ export const useRecordingManager = () => {
       if (!response.ok) {
         throw new Error("Failed to sync recording");
       }
+      const payload = (await response.json()) as {
+        fileId?: string;
+      };
 
       setRecordings((prev) =>
         prev.map((item) =>
-          item.id === recording.id ? { ...item, state: "SYNCED" } : item
+          item.id === recording.id
+            ? {
+                ...item,
+                dataUrl: "",
+                fileId: payload.fileId,
+                state: "SYNCED",
+              }
+            : item
         )
       );
     } catch (err) {

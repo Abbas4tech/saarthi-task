@@ -31,6 +31,7 @@ export interface RecordingArtifact {
   size: number;
   state: "LOCAL" | "UPLOADING" | "SYNCED" | "FAILED";
   deliveredAt?: string;
+  fileId?: string;
 }
 
 export type RecordingDocument = RecordingArtifact & {

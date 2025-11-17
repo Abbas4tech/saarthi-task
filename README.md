@@ -7,7 +7,7 @@ A Relationship Manager cockpit built with Next.js + shadcn-inspired UI primitive
 - **Customer dossier** – searchable list with priority and segment tags for quick filtering.
 - **Appointment timeline** – status-aware actions for `"Done"`, `"Pending"`, and `"Cancelled"` meetings plus recording & playback CTAs.
 - **Recording cockpit** – RecordRTC-powered audio capture (WAV) with start/pause/resume/stop, customer routing, inline playback, and background uploads.
-- **Mongo-backed delivery & storage** – the `/api/recordings` route writes metadata to MongoDB and streams the WAV blob into GridFS (chunked 256 KB pieces) so the actual media lives server-side before the RM shares it.
+- **Mongo-backed delivery & storage** – the `/api/recordings` route writes metadata to MongoDB and streams the WAV blob into GridFS (chunked 256 KB pieces) so the actual media lives server-side before the RM shares it, and `/api/recordings/[id]` streams the audio back on-demand for playback.
 - **Playback overlay** – lightweight media viewer for completed appointments with pause/play controls.
 - **Local-first storage** – recordings land in `localStorage` instantly, then an uploader job pushes them to the `/api/recordings` route (Mongo-ready) before marking them `SYNCED`.
 
